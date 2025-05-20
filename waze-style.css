@@ -1,0 +1,114 @@
+/* === reset do documento === */
+body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  
+
+/* === container inicial com imagem do mapa no fundo (aqui será trocado pelo fundo do mapa do app) === */
+  .container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background-image: url('imagens/gramado.png');
+    background-size: cover;
+    background-position: center center;
+    background-attachment: fixed;
+  }
+
+
+/* === linhas de eixo central (escondidas no momento) === */
+  .linha-eixo {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.25);
+  }
+  .linha-x {
+    width: 100%;
+    height: 2px;
+    top: 50%;
+    left: 0;
+  }
+  .linha-y {
+    width: 2px;
+    height: 100%;
+    left: 50%;
+    top: 0;
+  }
+  
+
+/* === estilo das bússolas rotativas === */
+  .bussola {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    transform: translate(-50%, -50%) rotate(0deg);
+    transform-origin: center center;
+    transition: transform 0.05s linear;
+    z-index: 1;
+  }
+  
+
+/* === pontos onde os ícones aparecem (pontos de destino) === */
+  .ponto-especifico {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background-size: cover;
+    background-position: center;
+    border-radius: 50%;
+    z-index: 3;
+    filter: drop-shadow(4px 4px 4px rgba(254, 254, 254, 0.5));
+  }
+  
+
+/* === ícone arrastável do usuário === */
+  .usuario {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    cursor: pointer;
+    transition: transform 0.2s ease, width 0.2s, height 0.2s;
+  }
+  /* efeito do usuário quando está sendo arrastado */
+  .usuario.ativo {
+    width: 70px;
+    height: 70px;
+    filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5));
+  }
+  
+
+/* === texto das distâncias acima das bússolas (vou colocar abaixo depois) === */
+  .distancia {
+    position: absolute;
+    transform: translateX(-50%);
+    font-family: 'Roboto', sans-serif;
+    font-size: 20px;
+    color: rgb(0, 46, 24);
+    font-weight: bold;
+    z-index: 3;
+    text-align: center;
+    background-color: rgba(0, 191, 100, 0.9);
+    padding: 5px 10px;
+    border-radius: 5px;
+    display: none;
+  }
+  
+/* === legendas abaixo das bússolas (depois serão substituídas pelas fotos dos pontos) === */
+  .legenda {
+    position: absolute;
+    transform: translateX(-50%);
+    font-family: 'Roboto', sans-serif;
+    top: 140%;
+    font-size: 15px;
+    color: rgb(0, 46, 24);
+    text-align: center;
+    margin-top: 5px;
+    z-index: 2;
+    background-color: rgba(0, 191, 100, 0.9);
+    padding: 5px 10px;
+    border-radius: 5px;
+  }
+  
