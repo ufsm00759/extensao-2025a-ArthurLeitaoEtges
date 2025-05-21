@@ -1,110 +1,345 @@
-// Define o tamanho de cada célula na grade (em pixels) e calcula quantas linhas e colunas cabem na tela
-const larguraCelula = 40, alturaCelula = 40;
-const linhas = Math.ceil(window.innerHeight / alturaCelula);
-const colunas = Math.ceil(window.innerWidth / larguraCelula);
-const grade = Array.from({ length: linhas }, () => Array(colunas).fill(0)); // Cria uma matriz 2D representando o mapa, com 0 indicando espaço livre
+const tamanhoGrid = 20;
+const larguraCelula = tamanhoGrid, alturaCelula = tamanhoGrid; // Tamanho das células (para visualização)
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
 
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-// Converte coordenadas em pixels para coordenadas na grade (posição em células)
-function posicaoParaGrid(x, y) {
+const linhas = Math.ceil(canvas.height / alturaCelula);
+const colunas = Math.ceil(canvas.width / larguraCelula);
+
+// Grade de células (0=livre, 1=obstáculo)
+const grade = Array.from({ length: linhas }, () => Array(colunas).fill(0));
+
+// Função para converter coordenadas px em índice de vértice
+function posicaoParaVertice(x, y) {
     return {
-        x: Math.floor(x / larguraCelula),
-        y: Math.floor(y / alturaCelula)
+        x: Math.round(x / larguraCelula),
+        y: Math.round(y / alturaCelula)
     };
 }
 
-
-// Mostra o caminho encontrado na tela, colocando marcadores para cada passo
-function mostrarCaminho(ux, uy, dx, dy) {
-    const inicio = posicaoParaGrid(ux, uy);     // posição inicial na grade
-    const fim = posicaoParaGrid(dx, dy);        // posição final na grade
-    const caminho = aStar(grade, new No(inicio.x, inicio.y), new No(fim.x, fim.y));     // encontra o caminho
-
-    // Remove marcadores de caminho anteriores
-    document.querySelectorAll('.passo-caminho').forEach(e => e.remove());
-
-    // Cria um marcador visual para cada passo do caminho encontrado
-    caminho.forEach(pos => {
-        const marcador = document.createElement('div');
-        marcador.className = 'passo-caminho';
-        marcador.style = `
-        position: absolute;
-        width: 10px;
-        height: 10px;
-        background: red;
-        border-radius: 50%;
-        left: ${pos.x * larguraCelula + larguraCelula / 2}px;
-        top: ${pos.y * alturaCelula + alturaCelula / 2}px;
-        transform: translate(-50%, -50%);
-        z-index: 4;
-        `;
-        document.getElementById('area').appendChild(marcador);
-    });
-}
-
-
-// Classe que representa um nó no algoritmo A*, guardando coordenadas e custo
+// Classe Nó com direção para A*
 class No {
     constructor(x, y, pai = null) {
         this.x = x;
         this.y = y;
-        this.pai = pai; // nó anterior no caminho
-        this.g = 0;     // custo do caminho até este nó
-        this.h = 0;     // heurística (estimativa até o destino)
-        this.f = 0;     // custo total (g + h)
+        this.pai = pai;
+        this.g = 0;
+        this.h = 0;
+        this.f = 0;
     }
 }
 
-
-// Função heurística para estimar distância entre dois nós (usando distância Euclidiana)
+// Heurística Euclidiana
 function heuristica(a, b) {
-  return Math.hypot(b.x - a.x, b.y - a.y);
+    return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function celulaComBufferLivre(linha, col) {
+    // Verifica linha e coluna dentro dos limites
+    if (linha < 0 || linha >= linhas || col < 0 || col >= colunas) return true; // fora do grid é livre (não bloqueia)
+
+    // Percorre a célula e seus 8 vizinhos
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            const ny = linha + dy;
+            const nx = col + dx;
+
+            if (ny >= 0 && ny < linhas && nx >= 0 && nx < colunas) {
+                if (grade[ny][nx] === 1) {
+                    return false; // obstáculo na célula ou ao redor bloqueia
+                }
+            }
+        }
+    }
+    return true; // área livre
+}
+
+// Verifica se movimento entre dois vértices passa por célula bloqueada
+function arestaLivre(v1, v2) {
+    if (v1.x === v2.x && v1.y === v2.y) return false;
+
+    if (v1.y === v2.y) {
+        const linha = v1.y - 1;
+        const col = Math.min(v1.x, v2.x);
+        if (linha < 0 || linha >= linhas) return true;
+        if (col < 0 || col >= colunas) return false;
+        return celulaComBufferLivre(linha, col);
+    }
+    if (v1.x === v2.x) {
+        const linha = Math.min(v1.y, v2.y);
+        const col = v1.x - 1;
+        if (col < 0 || col >= colunas) return true;
+        if (linha < 0 || linha >= linhas) return false;
+        return celulaComBufferLivre(linha, col);
+    }
+
+    const minX = Math.min(v1.x, v2.x);
+    const minY = Math.min(v1.y, v2.y);
+
+    if (
+        minX <= 0 || minX >= colunas ||
+        minY <= 0 || minY >= linhas
+    ) return false;
+
+    return (
+        celulaComBufferLivre(minY - 1, minX - 1) &&
+        celulaComBufferLivre(minY - 1, minX) &&
+        celulaComBufferLivre(minY, minX - 1)
+    );
 }
 
 
-// Implementação do algoritmo A* para encontrar o caminho mais curto na grade
-function aStar(grid, inicio, fim) {
-    const open = [inicio], closed = [];       // lista de nós a serem avaliados e ja avaliados
+// Movimentos possíveis entre vértices
+const movimentos = [
+    { x: 0, y: -1, custo: 1 }, { x: 1, y: 0, custo: 1 },
+    { x: 0, y: 1, custo: 1 }, { x: -1, y: 0, custo: 1 },
+    { x: 1, y: -1, custo: Math.SQRT2 }, { x: 1, y: 1, custo: Math.SQRT2 },
+    { x: -1, y: 1, custo: Math.SQRT2 }, { x: -1, y: -1, custo: Math.SQRT2 }
+];
 
-    // Possíveis movimentos (8 direções: cima, baixo, esquerda, direita e diagonais)
-    const movimentos = [
-        { x: 0, y: -1 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 },
-        { x: 1, y: -1 }, { x: 1, y: 1 }, { x: -1, y: 1 }, { x: -1, y: -1 }
-    ];
+// Algoritmo A* para vértices
+function aStarVertices(inicio, fim) {
+    const aberto = [];
+    const fechado = new Set();
 
+    const inicioNo = new No(inicio.x, inicio.y);
+    inicioNo.h = heuristica(inicio, fim);
+    inicioNo.f = inicioNo.h;
+    aberto.push(inicioNo);
 
-    while (open.length > 0) {
-        let atual = open.reduce((a, b) => a.f < b.f ? a : b);   // Seleciona o nó com menor custo total f
-
-        if (atual.x === fim.x && atual.y === fim.y) {           // Se chegou no destino, reconstrói o caminho retornando a lista de nós
-        let caminho = [];
-        for (let temp = atual; temp; temp = temp.pai)
-            caminho.push({ x: temp.x, y: temp.y });
-        return caminho.reverse();
+    while (aberto.length > 0) {
+        let atualIndex = 0;
+        for (let i = 1; i < aberto.length; i++) {
+            if (aberto[i].f < aberto[atualIndex].f) atualIndex = i;
         }
 
-        open.splice(open.indexOf(atual), 1);                    // Remove o nó atual da lista open e adiciona à closed
-        closed.push(atual);
+        const atual = aberto.splice(atualIndex, 1)[0];
+        const chaveAtual = `${atual.x},${atual.y}`;
+        fechado.add(chaveAtual);
 
-        for (const dir of movimentos) {                         // Para cada possível movimento do nó atual
-        const nx = atual.x + dir.x, ny = atual.y + dir.y;
+        if (atual.x === fim.x && atual.y === fim.y) {
+            const caminho = [];
+            let no = atual;
+            while (no) {
+                caminho.unshift({ x: no.x, y: no.y });
+                no = no.pai;
+            }
+            return caminho;
+        }
 
-        if (nx < 0 || ny < 0 || ny >= grid.length || nx >= grid[0].length) continue;    // Ignora posições fora dos limites da grade
+        for (const mov of movimentos) {
+            const nx = atual.x + mov.x;
+            const ny = atual.y + mov.y;
+            const chave = `${nx},${ny}`;
 
-        if (grid[ny][nx] === 1 || closed.find(n => n.x === nx && n.y === ny)) continue; // Ignora posições com obstáculo (valor 1) ou já avaliadas
+            if (
+                nx < 0 || ny < 0 ||
+                nx > colunas || ny > linhas || // > pois agora tem (linhas+1)x(colunas+1)
+                fechado.has(chave)
+            ) continue;
 
-        const gExtra = (dir.x && dir.y) ? Math.SQRT2 : 1;       // Custo extra para movimentos diagonais
-        const vizinho = new No(nx, ny, atual);                  // Cria nó vizinho e calcula seus custos
-        vizinho.g = atual.g + gExtra;
-        vizinho.h = heuristica(vizinho, fim);
-        vizinho.f = vizinho.g + vizinho.h;
+            if (!arestaLivre(atual, { x: nx, y: ny })) continue;
 
-        const existente = open.find(n => n.x === nx && n.y === ny);                     // Se já existe um nó igual na lista open com menor custo, ignora este vizinho
-        if (existente && existente.f <= vizinho.f) continue;
-        open.push(vizinho);                                                             // Caso contrário, adiciona o vizinho à lista open para avaliar depois
+            const g = atual.g + mov.custo;
+            const h = heuristica({ x: nx, y: ny }, fim);
+            const f = g + h;
+
+            const existente = aberto.find(n => n.x === nx && n.y === ny);
+            if (!existente || g < existente.g) {
+                const vizinho = new No(nx, ny, atual);
+                vizinho.g = g;
+                vizinho.h = h;
+                vizinho.f = f;
+
+                if (!existente) aberto.push(vizinho);
+            }
         }
     }
 
-    // Se não encontrou caminho, retorna array vazio
-    return [];
+    return []; // sem caminho
 }
+
+// Função para testar se o agente pode se mover em linha reta entre dois vértices, sem obstáculos
+function linhaLivre(v1, v2) {
+    let x0 = v1.x;
+    let y0 = v1.y;
+    let x1 = v2.x;
+    let y1 = v2.y;
+
+    let dx = Math.abs(x1 - x0);
+    let dy = Math.abs(y1 - y0);
+
+    let x = x0;
+    let y = y0;
+
+    let n = 1;
+    let x_inc = (x1 > x0) ? 1 : (x1 < x0 ? -1 : 0);
+    let y_inc = (y1 > y0) ? 1 : (y1 < y0 ? -1 : 0);
+
+    let error;
+
+    if (dx > dy) {
+        error = dx / 2;
+        for (; n <= dx; n++) {
+            if (x < 0 || y < 0 || y >= linhas || x >= colunas) return false;
+
+            // Aqui testamos se a célula e seu buffer estão livres
+            if (!celulaComBufferLivre(y, x)) return false;
+
+            x += x_inc;
+            error -= dy;
+            if (error < 0) {
+                y += y_inc;
+                error += dx;
+            }
+        }
+    } else {
+        error = dy / 2;
+        for (; n <= dy; n++) {
+            if (x < 0 || y < 0 || y >= linhas || x >= colunas) return false;
+
+            if (!celulaComBufferLivre(y, x)) return false;
+
+            y += y_inc;
+            error -= dx;
+            if (error < 0) {
+                x += x_inc;
+                error += dy;
+            }
+        }
+    }
+    return true;
+}
+
+// Suaviza o caminho eliminando vértices intermediários supérfluos
+function suavizarCaminho(caminho) {
+    if (caminho.length < 3) return caminho;
+
+    let A1 = 0;
+    let A2 = 1;
+
+    while (true) {
+        if (A2 >= caminho.length - 1) break;
+
+        const origem = caminho[A1];
+        const destino = caminho[A2 + 1];
+
+        if (linhaLivre(origem, destino)) {
+            // Remove o ponto A2, substituindo A1->A2 + A2->A3 por A1->A3
+            caminho.splice(A2, 1);
+            // Não avança A1, pois queremos tentar juntar o próximo A2
+        } else {
+            A1 = A2;
+            A2++;
+        }
+    }
+
+    return caminho;
+}
+
+// Desenha grade células
+function desenharGrade() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    for (let y = 0; y <= linhas; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * alturaCelula);
+        ctx.lineTo(canvas.width, y * alturaCelula);
+        ctx.stroke();
+    }
+    for (let x = 0; x <= colunas; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * larguraCelula, 0);
+        ctx.lineTo(x * larguraCelula, canvas.height);
+        ctx.stroke();
+    }
+
+    // Desenha obstáculos preenchidos
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    for (let y = 0; y < linhas; y++) {
+        for (let x = 0; x < colunas; x++) {
+            if (grade[y][x] === 1) {
+                ctx.fillRect(x * larguraCelula, y * alturaCelula, larguraCelula, alturaCelula);
+            }
+        }
+    }
+}
+
+// Desenha caminho suavizado nas arestas com curvas
+function mostrarCaminho(ux, uy, dx, dy) {
+    desenharGrade();
+
+    const inicio = posicaoParaVertice(ux, uy);
+    const fim = posicaoParaVertice(dx, dy);
+
+    let caminho = aStarVertices(inicio, fim);
+    if (caminho.length === 0) return;
+
+    // Suaviza caminho eliminando vértices intermediários supérfluos
+    caminho = suavizarCaminho(caminho);
+
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+
+    // Começa no primeiro ponto (convertendo vértice para pixel)
+    let p0 = caminho[0];
+    ctx.moveTo(
+        p0.x * larguraCelula,
+        p0.y * alturaCelula
+    );
+
+    // Desenha curvas quadráticas para suavizar o caminho
+    for (let i = 1; i < caminho.length - 1; i++) {
+        const p1 = caminho[i];
+        const p2 = caminho[i + 1];
+
+        const cx = (p1.x + p2.x) / 2 * larguraCelula;
+        const cy = (p1.y + p2.y) / 2 * alturaCelula;
+
+        ctx.quadraticCurveTo(
+            p1.x * larguraCelula,
+            p1.y * alturaCelula,
+            cx,
+            cy
+        );
+    }
+
+    // Linha reta até o último ponto (se houver)
+    const ultimo = caminho[caminho.length - 1];
+    ctx.lineTo(
+        ultimo.x * larguraCelula,
+        ultimo.y * alturaCelula
+    );
+
+    ctx.stroke();
+}
+
+// Eventos de clique para desenhar caminho
+let cliqueInicial = null;
+canvas.addEventListener('click', e => {
+    const x = e.clientX;
+    const y = e.clientY;
+    if (!cliqueInicial) {
+        cliqueInicial = { x, y };
+    } else {
+        mostrarCaminho(cliqueInicial.x, cliqueInicial.y, x, y);
+        cliqueInicial = null;
+    }
+});
+
+// Exemplo: marca alguns obstáculos (você pode editar)
+grade[15][35] = 1;
+grade[16][35] = 1;
+grade[17][35] = 1;
+grade[15][36] = 1;
+grade[15][37] = 1;
+grade[15][38] = 1;
+grade[15][39] = 1;
+grade[16][39] = 1;
+grade[17][39] = 1;
+
+desenharGrade();

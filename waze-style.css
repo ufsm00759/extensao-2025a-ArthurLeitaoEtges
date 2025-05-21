@@ -4,7 +4,6 @@ body, html {
     padding: 0;
     overflow: hidden;
   }
-  
 
 /* === container inicial com imagem do mapa no fundo (aqui será trocado pelo fundo do mapa do app) === */
   .container {
@@ -112,3 +111,25 @@ body, html {
     border-radius: 5px;
   }
   
+  #area {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+  
+  .celula {
+    box-sizing: border-box;
+    border: 1px solid rgba(0, 0, 0, 0.1); /* Linhas da grade */
+    position: absolute;
+    width: 20px;
+    aspect-ratio: 1 / 1; /* força altura igual à largura */
+  }
+
+  #canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0; /* abaixo de todos os ícones, imagens, etc */
+    pointer-events: none; /* permite clicar nos elementos acima normalmente */
+  }
